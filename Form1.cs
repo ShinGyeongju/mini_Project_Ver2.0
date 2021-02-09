@@ -1,14 +1,7 @@
 using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Forms;
-using System.IO;
 using System.Drawing.Imaging;
+using System.Windows.Forms;
 
 namespace _016_01_칼라영상처리2
 {
@@ -19,28 +12,21 @@ namespace _016_01_칼라영상처리2
         //////////////////////////////////
         static byte[,,] inImage = null, outImage = null;
         static int inH = 0, inW = 0, outH = 0, outW = 0;
-        static string fileName;
+        static string fileName, openFileName;
         static Bitmap paper, bitmap;
         const int RGB = 3, RR = 0, GG = 1, BB = 2;
         static int mouseYN = 0;
         static int down_x = 0, down_y = 0, up_x = 0, up_y = 0;
+        static string[] tmpFiles = new string[500];
+        static int tmpIndex = 0;
 
+        //////////////////////////////////
+        //      이벤트 함수
+        //////////////////////////////////
         public Form1()
         {
             InitializeComponent();
             toolStripStatusLabel1.Text = " ";
-        }
-        private void Form1_Load(object sender, EventArgs e)
-        {
-            //  실수로 더블클릭
-        }
-        private void pictureBox1_Click(object sender, EventArgs e)
-        {
-            //  실수로 더블클릭
-        }
-        private void menuStrip3_ItemClicked(object sender, ToolStripItemClickedEventArgs e)
-        {
-            //  실수로 더블클릭
         }
         private void Form1_KeyDown(object sender, KeyEventArgs e)
         {
@@ -54,12 +40,15 @@ namespace _016_01_칼라영상처리2
                     case Keys.S:
                         save_Image();
                         break;
+                    case Keys.Z:
+                        restoreTempFile();
+                        break;
                 }
             }
         }
         private void pictureBox1_MouseDown(object sender, MouseEventArgs e)
         {
-            if (mouseYN != 0) 
+            if (mouseYN != 0)
             {
                 down_x = e.Y;
                 down_y = e.X;
@@ -108,13 +97,17 @@ namespace _016_01_칼라영상처리2
         {
             save_Image();
         }
+        private void 되돌리기CtrlZToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            restoreTempFile();
+        }
         private void 도움말ToolStripMenuItem_Click(object sender, EventArgs e)
         {
             // 미완성
         }
         private void 원본ToolStripMenuItem1_Click(object sender, EventArgs e)
         {
-            equal_Image();
+            openEqual_Image();
         }
         private void 전체지정ToolStripMenuItem_Click(object sender, EventArgs e)
         {
@@ -211,7 +204,8 @@ namespace _016_01_칼라영상처리2
                 return;
             }
             fileName = ofd.FileName;
-            bitmap = new Bitmap(fileName);
+            openFileName = ofd.FileName;
+            bitmap = new Bitmap(openFileName);
 
             inW = bitmap.Height;
             inH = bitmap.Width;
@@ -226,7 +220,6 @@ namespace _016_01_칼라영상처리2
                     inImage[BB, i, k] = c.B;
                 }
             }
-            
             equal_Image();
         }
         void save_Image()
@@ -245,7 +238,7 @@ namespace _016_01_칼라영상처리2
             }
             string saveFileName = sfd.FileName;
             Bitmap image = new Bitmap(outH, outW);
- 
+
             for (int i = 0; i < outH; i++)
             {
                 for (int k = 0; k < outW; k++)
@@ -262,8 +255,67 @@ namespace _016_01_칼라영상처리2
             image.Save(saveFileName, ImageFormat.Png);
             toolStripStatusLabel1.Text = saveFileName + "으로 저장됨";
         }
+        void saveTempFile()
+        {       // inImage를 디스크에 저장 후, outImage를 inImage에 저장
+            string saveFileName = System.IO.Path.GetTempPath() + Guid.NewGuid().ToString() + ".tmp";
+            Bitmap image = new Bitmap(inH, inW);
+
+            for (int i = 0; i < inH; i++)
+            {
+                for (int k = 0; k < inW; k++)
+                {
+                    int r = inImage[RR, i, k];
+                    int g = inImage[GG, i, k];
+                    int b = inImage[BB, i, k];
+                    Color c = Color.FromArgb(r, g, b);
+                    image.SetPixel(i, k, c);
+                }
+            }
+            image.Save(saveFileName, System.Drawing.Imaging.ImageFormat.Png);
+            tmpFiles[tmpIndex++] = saveFileName;
+
+            inH = outH;
+            inW = outW;
+            inImage = new byte[RGB, inH, inW];
+            for (int rgb = 0; rgb < RGB; rgb++)
+            {
+                for (int i = 0; i < outH; i++)
+                {
+                    for (int k = 0; k < outW; k++)
+                    {
+                        inImage[rgb, i, k] = outImage[rgb, i, k];
+                    }
+                }
+            }
+        }
+        void restoreTempFile()
+        {       // 디스크의 최근 파일을 inImage에 복사
+            if (tmpIndex <= 0)
+            {
+                return;
+            }       
+            fileName = tmpFiles[--tmpIndex];
+            bitmap = new Bitmap(fileName);
+            inW = bitmap.Height;
+            inH = bitmap.Width;
+            inImage = new byte[RGB, inH, inW];
+
+            for (int i = 0; i < inH; i++)
+            {
+                for (int k = 0; k < inW; k++)
+                {
+                    Color c = bitmap.GetPixel(i, k);
+                    inImage[RR, i, k] = c.R;
+                    inImage[GG, i, k] = c.G;
+                    inImage[BB, i, k] = c.B;
+                }
+            }
+            equal_Image();
+            //System.IO.File.Delete(fileName); // 임시파일 삭제 
+        }
+
         void display_Image()
-        {
+        {       // 이미지 출력
             paper = new Bitmap(outH, outW);
             pictureBox1.Size = new Size(outH, outW);
             this.Size = new Size(outH + 150, outW + 110);
@@ -284,7 +336,7 @@ namespace _016_01_칼라영상처리2
             toolStripStatusLabel1.Text = "(" + outH.ToString() + "x" + outW.ToString() + ")  " + fileName;
         }
         double getValue(string label_Text, int max, int min)
-        {
+        {       // 서브폼의 입력값 반환
             subForm01 sf01 = new subForm01(label_Text, max, min);
             if (sf01.ShowDialog() == DialogResult.Cancel)
             {
@@ -298,7 +350,7 @@ namespace _016_01_칼라영상처리2
         //      영상처리 함수
         //////////////////////////////////
         void equal_Image()
-        {       // 원본 출력
+        {       // outImage 출력
             if (inImage == null)
             {
                 return;
@@ -320,12 +372,51 @@ namespace _016_01_칼라영상처리2
             }
             display_Image();
         }
+        void openEqual_Image()
+        {       // 원본 출력
+            if (inImage == null)
+            {
+                return;
+            }
+
+            bitmap = new Bitmap(openFileName);
+            inW = bitmap.Height;
+            inH = bitmap.Width;
+            inImage = new byte[RGB, inH, inW];
+            for (int i = 0; i < inH; i++)
+            {
+                for (int k = 0; k < inW; k++)
+                {
+                    Color c = bitmap.GetPixel(i, k);
+                    inImage[RR, i, k] = c.R;
+                    inImage[GG, i, k] = c.G;
+                    inImage[BB, i, k] = c.B;
+                }
+            }
+
+            outH = inH;
+            outW = inW;
+            outImage = new byte[RGB, outH, outW];
+
+            for (int rgb = 0; rgb < RGB; rgb++)
+            {
+                for (int i = 0; i < outH; i++)
+                {
+                    for (int k = 0; k < outW; k++)
+                    {
+                        outImage[rgb, i, k] = inImage[rgb, i, k];
+                    }
+                }
+            }
+            display_Image();
+            saveTempFile();
+        }
         void bright_Image()
         {       // 밝기 조절
             if (inImage == null)
             {
                 return;
-            }            
+            }
 
             outH = inH;
             outW = inW;
@@ -345,7 +436,7 @@ namespace _016_01_칼라영상처리2
 
             int bright = (int)getValue("밝기를 입력하세요. (+:밝게/-:어둡게)", 255, -255);
 
-            for (int rgb = 0; rgb < RGB; rgb++) 
+            for (int rgb = 0; rgb < RGB; rgb++)
             {
                 for (int i = 0; i < outH; i++)
                 {
@@ -374,6 +465,7 @@ namespace _016_01_칼라영상처리2
                 }
             }
             display_Image();
+            saveTempFile();
         }
         void bw_Image()
         {       // 흑백 출력 (픽셀의 평균값 기준)
@@ -435,6 +527,7 @@ namespace _016_01_칼라영상처리2
                     }
                 }
             }
+            saveTempFile();
             display_Image();
         }
         void color_Reverse_Image()
@@ -452,7 +545,7 @@ namespace _016_01_칼라영상처리2
             {
                 return;
             }
-            if (mouseYN == 0) 
+            if (mouseYN == 0)
             {
                 down_x = 0;
                 down_y = 0;
@@ -460,7 +553,7 @@ namespace _016_01_칼라영상처리2
                 up_y = outH;
             }
 
-            for (int rgb=0; rgb < RGB; rgb++)
+            for (int rgb = 0; rgb < RGB; rgb++)
             {
                 for (int i = 0; i < outH; i++)
                 {
@@ -478,6 +571,7 @@ namespace _016_01_칼라영상처리2
                 }
             }
             display_Image();
+            saveTempFile();
         }
         void rl_Reverse_Image()
         {       // 좌우 반전 출력
@@ -501,6 +595,7 @@ namespace _016_01_칼라영상처리2
                 }
             }
             display_Image();
+            saveTempFile();
         }
         void ud_Reverse_Image()
         {       // 상하 반전 출력
@@ -524,6 +619,7 @@ namespace _016_01_칼라영상처리2
                 }
             }
             display_Image();
+            saveTempFile();
         }
         void scaleUp_Image()
         {       // 크기 조절(확대)
@@ -547,6 +643,7 @@ namespace _016_01_칼라영상처리2
                 }
             }
             display_Image();
+            saveTempFile();
         }
 
         void scaleDown_Image()
@@ -560,7 +657,7 @@ namespace _016_01_칼라영상처리2
             outW = inW / 2;
             outImage = new byte[RGB, outH, outW];
 
-            for (int rgb=0;rgb<RGB;rgb++)
+            for (int rgb = 0; rgb < RGB; rgb++)
             {
                 for (int i = 0; i < outH; i++)
                 {
@@ -571,6 +668,7 @@ namespace _016_01_칼라영상처리2
                 }
             }
             display_Image();
+            saveTempFile();
         }
         void move_Image()
         {       // 이동 출력
@@ -616,6 +714,7 @@ namespace _016_01_칼라영상처리2
                 }
             }
             display_Image();
+            saveTempFile();
         }
         void rotate_Image()
         {       // 회전 출력
@@ -679,6 +778,7 @@ namespace _016_01_칼라영상처리2
                 }
             }
             display_Image();
+            saveTempFile();
         }
         void mosaic1_Image()
         {       // 모자이크 출력(약하게)
@@ -695,15 +795,15 @@ namespace _016_01_칼라영상처리2
 
             for (int rgb = 0; rgb < RGB; rgb++)
             {
-                for (int i = 0; i < outH; i += mosaic) 
+                for (int i = 0; i < outH; i += mosaic)
                 {
-                    for (int k = 0; k < outW; k += mosaic) 
+                    for (int k = 0; k < outW; k += mosaic)
                     {
-                        if ((i + mosaic) > outH || (k + mosaic) > outW) 
+                        if ((i + mosaic) > outH || (k + mosaic) > outW)
                         {
-                            for (int a = 0; a < (outH % mosaic); a++) 
+                            for (int a = 0; a < (outH % mosaic); a++)
                             {
-                                for (int b = 0; b < (outW % mosaic); b++) 
+                                for (int b = 0; b < (outW % mosaic); b++)
                                 {
                                     outImage[rgb, i + a, k + b] = inImage[rgb, i + a, k + b];
                                 }
@@ -715,7 +815,7 @@ namespace _016_01_칼라영상처리2
                             {
                                 for (int b = 0; b < mosaic; b++)
                                 {
-                                     outImage[rgb, i + a, k + b] = inImage[rgb, i + (mosaic / 2), k + (mosaic / 2)];
+                                    outImage[rgb, i + a, k + b] = inImage[rgb, i + (mosaic / 2), k + (mosaic / 2)];
                                 }
                             }
                         }
@@ -724,15 +824,16 @@ namespace _016_01_칼라영상처리2
             }
             for (int rgb = 0; rgb < RGB; rgb++)
             {
-                for (int i = (outH - mosaic); i < outH; i++) 
+                for (int i = (outH - mosaic); i < outH; i++)
                 {
-                    for (int k = (outW - mosaic); k < outW; k++) 
+                    for (int k = (outW - mosaic); k < outW; k++)
                     {
                         outImage[rgb, i, k] = inImage[rgb, i, k];
                     }
                 }
             }
-                        display_Image();
+            display_Image();
+            saveTempFile();
         }
         void mosaic2_Image()
         {       // 모자이크 출력(강하게)
@@ -749,9 +850,9 @@ namespace _016_01_칼라영상처리2
 
             for (int rgb = 0; rgb < RGB; rgb++)
             {
-                for (int i = 0; i < outH; i += mosaic) 
+                for (int i = 0; i < outH; i += mosaic)
                 {
-                    for (int k = 0; k < outW; k += mosaic) 
+                    for (int k = 0; k < outW; k += mosaic)
                     {
                         if ((i + mosaic) > outH || (k + mosaic) > outW)
                         {
@@ -777,6 +878,7 @@ namespace _016_01_칼라영상처리2
                 }
             }
             display_Image();
+            saveTempFile();
         }
         void emboss_Image()
         {       // 엠보싱 출력
@@ -789,7 +891,7 @@ namespace _016_01_칼라영상처리2
             outW = inW;
             outImage = new byte[RGB, outH, outW];
 
-            const int MSIZE= 3;
+            const int MSIZE = 3;
             double[,] mask = { { -1.0, 0.0, 0.0 }, { 0.0, 0.0, 0.0 }, { 0.0, 0.0, 1.0 } };
 
             double[,,] tmp_Input = new double[RGB, inH + 2, inW + 2];
@@ -817,7 +919,7 @@ namespace _016_01_칼라영상처리2
             }
 
             double sum = 0.0;
-            for (int rgb=0;rgb<RGB;rgb++)
+            for (int rgb = 0; rgb < RGB; rgb++)
             {
                 for (int i = 0; i < inH; i++)
                 {
@@ -835,7 +937,7 @@ namespace _016_01_칼라영상처리2
                     }
                 }
             }
-            
+
             for (int rgb = 0; rgb < RGB; rgb++)
             {
                 for (int i = 0; i < outH; i++)
@@ -855,6 +957,7 @@ namespace _016_01_칼라영상처리2
                 }
             }
             display_Image();
+            saveTempFile();
         }
         void blurr_Image()
         {       // 블러링 출력
@@ -913,7 +1016,7 @@ namespace _016_01_칼라영상처리2
                     }
                 }
             }
-            
+
             for (int rgb = 0; rgb < RGB; rgb++)
             {
                 for (int i = 0; i < outH; i++)
@@ -933,6 +1036,7 @@ namespace _016_01_칼라영상처리2
                 }
             }
             display_Image();
+            saveTempFile();
         }
         void edge_Image()
         {       // 경계선 검출(sobel mask 이용)
@@ -988,6 +1092,7 @@ namespace _016_01_칼라영상처리2
                 }
             }
             display_Image();
+            saveTempFile();
         }
         void stretch_Image()
         {       // 선명하게 출력
@@ -1030,6 +1135,7 @@ namespace _016_01_칼라영상처리2
                 }
             }
             display_Image();
+            saveTempFile();
         }
         void endin_Image()
         {       // 강제로 선명하게 출력
@@ -1082,6 +1188,7 @@ namespace _016_01_칼라영상처리2
                 }
             }
             display_Image();
+            saveTempFile();
         }
         void hisequal_Image()
         {       // 평활화 출력
@@ -1130,6 +1237,7 @@ namespace _016_01_칼라영상처리2
                 }
             }
             display_Image();
+            saveTempFile();
         }
     }
 }
